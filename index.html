@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ayık Band Sales Dashboard</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- External Libs -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <img src="https://www.konveyorbant.com/wp-content/themes/ayik-band/assets/image/logo/logo2.svg"
+                alt="Ayık Band Logo" class="logo">
+            <div class="brand-text">
+                <h1>Satış Paneli</h1>
+                <span class="subtitle">Performans Özeti</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="quarter-badge" id="quarterLabel">Ç-- ----</div>
+            <button id="exportPdfBtn" class="btn btn-primary" style="margin-right: 10px;">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+                    <path
+                        d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
+                </svg>
+                PDF İndir
+            </button>
+            <button id="ratesBtn" class="btn btn-secondary">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M1 3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1H1zm7 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+                    <path
+                        d="M0 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V5zm3 0a2 2 0 0 1-2 2v4a2 2 0 0 1 2 2h10a2 2 0 0 1 2-2V7a2 2 0 0 1-2-2H3z" />
+                </svg>
+                Kurlar
+            </button>
+
+        </div>
+    </header>
+
+    <!-- Upload Overlay (Initial State) -->
+    <div id="uploadOverlay" class="upload-overlay">
+        <div class="upload-card">
+            <h2>Satış Verilerini Yükle</h2>
+            <p>Analize başlamak için Excel dosyanızı yükleyin.</p>
+            <label for="fileInput" class="upload-area">
+                <span class="icon">📂</span>
+                <span class="text">.xlsx Dosyası Seçmek İçin Tıklayın</span>
+            </label>
+            <input type="file" id="fileInput" accept=".xlsx, .xls" hidden>
+            <p class="file-status" id="uploadStatus">Dosya seçilmedi</p>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <main id="mainDashboard" class="hidden">
+
+        <!-- Print Header (Visible only in PDF) -->
+        <div id="printHeader" class="print-header">
+            <img src="https://www.konveyorbant.com/wp-content/themes/ayik-band/assets/image/logo/logo2.svg" alt="Logo"
+                class="print-logo">
+            <div class="print-text">
+                <h1>Ayık Band Satış Raporu</h1>
+                <p id="printDateRange">--</p>
+            </div>
+        </div>
+
+        <!-- Sticky Filter Bar -->
+        <section class="filter-bar">
+            <div class="filter-group">
+                <select id="filterMonth">
+                    <option value="">Tüm Aylar</option>
+                </select>
+                <select id="filterManager">
+                    <option value="">Tüm Bölge Müdürleri</option>
+                </select>
+                <select id="filterRegion">
+                    <option value="">Tüm Bölgeler</option>
+                </select>
+                <select id="filterCity">
+                    <option value="">Tüm Şehirler</option>
+                </select>
+                <select id="filterType">
+                    <option value="">Tüm Tipler</option>
+                </select>
+                <select id="filterCurrency">
+                    <option value="">Tüm Para Birimleri</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <div class="search-wrapper">
+                    <input type="text" id="custSearch" placeholder="Müşteri Ara...">
+                </div>
+                <div class="toggle-wrapper" title="Normalleştirilmiş EUR ve Orijinal Para Birimi arasında geçiş yap">
+                    <label class="switch">
+                        <input type="checkbox" id="currencyToggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label">EUR Karşılığı</span>
+                </div>
+                <button id="resetFiltersBtn" class="btn btn-outline">Sıfırla</button>
+            </div>
+        </section>
+
+        <!-- Stats Grid -->
+        <section class="kpi-grid">
+            <div class="card kpi-card">
+                <h3>KDV Hariç Toplam Satış</h3>
+                <div class="value primary" id="kpiNetSales">--</div>
+                <div class="subtext" id="kpiTargetAttainment">Hedef: --%</div>
+            </div>
+            <div class="card kpi-card">
+                <h3>Fatura Sayısı</h3>
+                <div class="value" id="kpiInvoices">--</div>
+                <div class="subtext" id="kpiAvgInv">Ort: --</div>
+            </div>
+            <div class="card kpi-card">
+                <h3>Müşteri Sayısı</h3>
+                <div class="value success" id="kpiCustomers">--</div>
+                <div class="subtext">Bu dönem aktif</div>
+            </div>
+            <div class="card kpi-card">
+                <h3>Ürün / Hizmet Dağılımı</h3>
+                <div class="chart-with-legend">
+                    <div class="mini-chart-wrapper">
+                        <canvas id="kpiChartMix"></canvas>
+                    </div>
+                    <div id="kpiLegendMix" class="custom-legend small"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Grid -->
+        <section class="charts-grid">
+            <div class="card chart-card wide">
+                <div class="chart-header">
+                    <h3>Satış Trendi (Günlük)</h3>
+                    <div class="toggle-wrapper">
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="weeklyToggle"> Haftalık
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="cumulativeToggle"> Kümülatif
+                        </label>
+                    </div>
+                </div>
+                <!-- Progress Bar Section -->
+
+                <div class="chart-container">
+                    <canvas id="chartTrend"></canvas>
+                </div>
+
+                <!-- Corporate Targets Infographics -->
+                <div class="corporate-targets-grid" id="corporateTargetsSection">
+                    <!-- Daily Target -->
+                    <div class="target-infographic">
+                        <div class="info-header">
+                            <span class="info-label">Günlük Hedef (Kümülatif) <small id="dailyTgtVal">--</small></span>
+                            <span class="info-percent" id="infoDailyPct">0%</span>
+                        </div>
+                        <div class="progress-track chic">
+                            <div class="progress-fill chic-gradient" id="progDaily" style="width: 0%"></div>
+                        </div>
+                        <div class="info-sub">Gerçekleşen: <span id="infoDailyAct">--</span></div>
+                    </div>
+
+                    <!-- Quarterly Target -->
+                    <div class="target-infographic">
+                        <div class="info-header">
+                            <span class="info-label">Çeyreklik Hedef <small>2.625.000 €</small></span>
+                            <span class="info-percent" id="infoQuarterPct">0%</span>
+                        </div>
+                        <div class="progress-track chic">
+                            <div class="progress-fill chic-gradient" id="progQuarter" style="width: 0%"></div>
+                        </div>
+                        <div class="info-sub">Gerçekleşen: <span id="infoQuarterAct">--</span></div>
+                    </div>
+
+                    <!-- Annual Target -->
+                    <div class="target-infographic">
+                        <div class="info-header">
+                            <span class="info-label">Yıllık Hedef <small>10.500.000 €</small></span>
+                            <span class="info-percent" id="infoAnnualPct">0%</span>
+                        </div>
+                        <div class="progress-track chic">
+                            <div class="progress-fill chic-gradient" id="progAnnual" style="width: 0%"></div>
+                        </div>
+                        <div class="info-sub">Gerçekleşen: <span id="infoAnnualAct">--</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card chart-card" id="cardManagerTargets">
+                <h3>Bölge Müdürü Hedef Takibi</h3>
+                <div id="managerTargetsContainer" class="manager-targets-grid">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+            <div class="card chart-card" id="cardCurrency">
+                <h3>Döviz Dağılımı </h3>
+                <div class="chart-with-legend-side">
+                    <div class="chart-wrapper">
+                        <canvas id="chartCurrency"></canvas>
+                    </div>
+                    <div id="legendCurrency" class="custom-legend"></div>
+                </div>
+            </div>
+            <div class="card chart-card" id="cardRegion">
+                <h3>Bölgesel Dağılım</h3>
+                <div class="chart-container">
+                    <canvas id="chartRegion"></canvas>
+                </div>
+            </div>
+            <div class="card chart-card" id="cardTop5">
+                <h3>En Büyük 5 Satış</h3>
+                <div class="chart-container">
+                    <div id="topInvoicesList" class="top-invoices-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Top Managers Customers Grid -->
+        <section class="top-customers-grid" id="topManagersCustomersSection">
+            <h3 class="section-title">Bölge Müdürleri ve Müşterileri</h3>
+            <div id="topManagersCustomersContainer" class="three-col-grid">
+                <!-- Injected by JS -->
+            </div>
+        </section>
+
+        <!-- Data Table -->
+        <section class="table-section">
+            <div class="card">
+                <div class="table-header-row">
+                    <h3>Detaylı Döküm</h3>
+                    <div class="pagination-controls">
+                        Sayfa başına satır:
+                        <select id="rowsPerPage">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                        </select>
+                        <span id="pageInfo">1-25 / --</span>
+                        <button id="prevPageFn" class="btn-sm">‹</button>
+                        <button id="nextPageFn" class="btn-sm">›</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="detailTable">
+                        <thead>
+                            <tr>
+                                <th data-sort="date">Tarih ⬍</th>
+                                <th data-sort="invNo">Fatura No ⬍</th>
+                                <th data-sort="customer">Müşteri ⬍</th>
+                                <th data-sort="manager">Bölge Müdürü ⬍</th>
+                                <th data-sort="region">Bölge ⬍</th>
+                                <th data-sort="city">Şehir ⬍</th>
+                                <th data-sort="type">Tip ⬍</th>
+                                <th data-sort="curr">Para Birimi ⬍</th>
+                                <th data-sort="net" class="text-right">Net (Karşılık) ⬍</th>
+                                <th data-sort="netOrig" class="text-right">Net (Orijinal) ⬍</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td colspan="8">TOPLAM</td>
+                                <td class="text-right" id="tableTotalNet">--</td>
+                                <td class="text-right"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+
+
+    <!-- Rates Modal -->
+    <div id="ratesModal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Döviz Kurları (EUR Tabanlı)</h3>
+                <button class="close-modal" id="closeRatesBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="hint">"EUR Karşılığı" aktifken diğer para birimlerini EUR'ya dönüştürmek için manuel kurları
+                    girin. Bunları referans olarak da kullanın.</p>
+                <div class="targets-list">
+                    <div class="target-item">
+                        <label>EUR / USD</label>
+                        <input type="number" step="0.0001" id="rateUSD" placeholder="ör: 1.08">
+                    </div>
+                    <div class="target-item">
+                        <label>EUR / GBP</label>
+                        <input type="number" step="0.0001" id="rateGBP" placeholder="ör: 0.85">
+                    </div>
+                    <div class="target-item">
+                        <label>EUR / TRY</label>
+                        <input type="number" step="0.01" id="rateTRY" placeholder="ör: 35.00">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="saveRatesBtn">Kurları Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deal Details Modal -->
+    <div id="dealDetailsModal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Fatura Detayları</h3>
+                <button class="close-modal" id="closeDealBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="deal-details-grid" id="dealDetailsContent">
+                    <!-- Content injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+
+</html>
